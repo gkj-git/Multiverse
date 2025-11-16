@@ -20,3 +20,11 @@ sudo yum update
 sudo yum install java 
 get installation from Jenkins.io -> documentation 
 install git -> since IDE couldn't default the execute path for jenkins 
+
+#SonarQube Installation 
+
+Installing with zip 
+
+scp -i /path/.pem /path/.zip ec2-user@dns:~/
+
+sqa_1c0e887fb8ad016bff93579a1ee690663117bfd7
