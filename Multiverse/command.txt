@@ -13,3 +13,10 @@ cp -r Multiverse-main/* /var/www/html/
 rm -rf Multiverse-main main.zip 
 systemctl enable httpd 
 systemctl start httpd 
+
+#Jenkins Installation
+
+sudo yum update 
+sudo yum install java 
+get installation from Jenkins.io -> documentation 
+install git -> since IDE couldn't default the execute path for jenkins 
