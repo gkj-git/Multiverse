@@ -67,8 +67,7 @@ pipeline {
                 ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ${EC2_USER}@${EC2_HOST} "
                 cd /home/ubuntu
                 sudo rm -rf /var/www/html/*
-                sudo unzip -o website.zip -d /var/www/html/
-"
+                sudo unzip -o website.zip -d /var/www/html/"
 
                 "
                 """
