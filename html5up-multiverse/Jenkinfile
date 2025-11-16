@@ -62,12 +62,14 @@ pipeline {
         stage('Deploy to Ubuntu EC2') {
             steps {
                 sh """
-                scp -o StrictHostKeyChecking=no -i ${SSH_KEY} website.zip \
-                ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
+                scp -o StrictHostKeyChecking=no -i ${SSH_KEY} website.zip ${EC2_USER}@${EC2_HOST}:/home/ubuntu/
 
                 ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ${EC2_USER}@${EC2_HOST} "
-                    sudo rm -rf /var/www/html/*
-                    sudo unzip -o /home/ubuntu/website.zip -d /var/www/html/
+                cd /home/ubuntu
+                sudo rm -rf /var/www/html/*
+                sudo unzip -o website.zip -d /var/www/html/
+"
+
                 "
                 """
             }
