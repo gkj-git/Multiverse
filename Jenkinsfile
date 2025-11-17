@@ -47,7 +47,7 @@ pipeline {
                     chmod 400 ${SSH_KEY}
 
                     # Copy files to EC2
-                   scp -o StrictHostKeyChecking=no \
+                    sudo scp -o StrictHostKeyChecking=no \
                    -i /var/lib/jenkins/.ssh/Multiverse.pem \
                  -r Multiverse/* ec2-user@15.223.166.38:/var/www/html/
 
