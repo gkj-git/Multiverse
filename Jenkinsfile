@@ -2,15 +2,10 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_URL = "http://15.222.22.214:8081/repository/mutiverse-raw"
-        NEXUS_DIR = "website"   // folder in Raw repo
-        ARTIFACT_NAME = "Multiverse.tar.gz"
-
         EC2_USER = "ec2-user"
         EC2_HOST = "15.223.166.38"
         EC2_PATH = "/var/www/html"
-
-        SSH_KEY = "/var/lib/jenkins/.ssh/Multiverse.pem"
+        LOCAL_DIR = "Multiverse"
     }
 
     stages {
@@ -22,21 +17,12 @@ pipeline {
             }
         }
 
-        stage('Package') {
+        stage('Package (Optional)') {
             steps {
+                // Only needed if you want a tar.gz
                 sh '''
-                    rm -f Multiverse/Multiverse.tar.gz || true
-                    tar -czf Multiverse/Multiverse.tar.gz -C Multiverse index.html assets images
-                '''
-            }
-        }
-
-        stage('Upload to Nexus') {
-            steps {
-                sh '''
-                    curl -v -u admin:admin \
-                    --upload-file Multiverse/Multiverse.tar.gz \
-                    ${NEXUS_URL}/${NEXUS_DIR}/${ARTIFACT_NAME}
+                    rm -f ${LOCAL_DIR}/${LOCAL_DIR}.tar.gz || true
+                    tar -czf ${LOCAL_DIR}/${LOCAL_DIR}.tar.gz -C ${LOCAL_DIR} index.html assets images
                 '''
             }
         }
@@ -44,18 +30,10 @@ pipeline {
         stage('Deploy to EC2') {
             steps {
                 sh '''
-                    chmod 400 ${SSH_KEY}
-
-                    # Copy files to EC2
-                    sudo scp -o StrictHostKeyChecking=no \
-                   -i /var/lib/jenkins/.ssh/Multiverse.pem \
-                 -r Multiverse/* ec2-user@15.223.166.38:/var/www/html/
-
-
-                    # Restart Apache (httpd)
-                    ssh -o StrictHostKeyChecking=no \
-                        -i ${SSH_KEY} ${EC2_USER}@${EC2_HOST} \
-                        "sudo systemctl restart httpd"
+                    echo "Deploying ${LOCAL_DIR} to EC2..."
+                    scp -o StrictHostKeyChecking=no -r ${LOCAL_DIR}/* ${EC2_USER}@${EC2_HOST}:${EC2_PATH}
+                    ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "sudo systemctl restart httpd"
+                    echo "Deployment completed successfully!"
                 '''
             }
         }
@@ -63,7 +41,7 @@ pipeline {
 
     post {
         success {
-            echo "🚀 Deployment Successful!"
+            echo "✅ Deployment Successful!"
         }
         failure {
             echo "❌ Deployment Failed!"
