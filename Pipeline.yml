@@ -1,0 +1,109 @@
+trigger:
+  branches:
+    include: [ main ]
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+# Change repoManager to 'none', 'nexus', or 'artifactory'
+variables:
+  appName: 'Multiverse'
+  artifactName: 'Arti-multiverse'
+  versionSuffix: '$(Build.BuildId)'
+  repoManager: 'nexus'
+  azureSubscription: ''
+  appServiceName: 'my-static-webapp'
+  resourceGroup: 'rg-webapps'
+
+  # Nexus (if used)
+  nexusUrl: 'http://localhost:8081/'
+  nexusRepo: 'raw-releases'
+  nexusUser: '$(NEXUS_USER)'
+  nexusPass: '$(NEXUS_PASS)'
+
+
+stages:
+  - stage: Package
+    displayName: Package static site
+    jobs:
+      - job: ZipStatic
+        steps:
+          - checkout: self
+          - script: |
+              set -e
+              mkdir -p "$(Build.ArtifactStagingDirectory)"
+              zip -r "$(Build.ArtifactStagingDirectory)/$(artifactName)-$(versionSuffix).zip" . \
+                -x ".git/*" "azure-pipelines.yml" "*.md"
+            displayName: Create ZIP
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: '$(artifactName)'
+              publishLocation: 'Container'
+
+  - stage: Optional_Repository_Upload
+    displayName: Optional upload to Nexus or Artifactory
+    condition: and(succeeded(), ne(variables['repoManager'], 'none'))
+    dependsOn: Package
+    jobs:
+      - job: UploadRepo
+        steps:
+          - download: current
+            artifact: '$(artifactName)'
+          - bash: |
+              set -e
+              FILE=$(ls $(Pipeline.Workspace)/$(artifactName)/*.zip | head -n1)
+              if [ "$(repoManager)" = "nexus" ]; then
+                curl -u "$(nexusUser):$(nexusPass)" --upload-file "$FILE" \
+                  "$(nexusUrl)/repository/$(nexusRepo)/$(appName)/$(Build.BuildId).zip"
+              else
+                curl -H "X-JFrog-Art-Api: $(artifactoryKey)" --upload-file "$FILE" \
+                  "$(artifactoryUrl)/$(artifactoryRepo)/$(appName)/$(Build.BuildId).zip"
+            displayName: Upload to repository
+
+  - stage: Quality
+    displayName: SonarQube analysis (optional for static HTML)
+    condition: succeeded()
+    dependsOn: Package
+    jobs:
+      - job: SonarScan
+        steps:
+          - task: SonarQubePrepare@5
+            displayName: Prepare SonarQube analysis
+            inputs:
+              SonarQube: '$(sonarServiceConnection)'
+              scannerMode: 'CLI'
+              configMode: 'manual'
+              cliProjectKey: 'my-static-site'
+              cliProjectName: 'my-static-site'
+              extraProperties: |
+                sonar.sources=.
+                sonar.exclusions=**/node_modules/**,**/*.zip
+          - task: SonarQubeAnalyze@5
+            displayName: Analyze
+          - task: SonarQubeQualityGate@5
+            displayName: Quality gate
+            inputs:
+              SonarQube: '$(sonarServiceConnection)'
+
+  - stage: Deploy
+    displayName: Deploy to Azure App Service
+    dependsOn: Package
+    condition: succeeded()
+    jobs:
+      - deployment: DeployStatic
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: '$(artifactName)'
+                - task: AzureWebApp@1
+                  displayName: Deploy ZIP to App Service
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    appType: 'webApp'
+                    appName: '$(appServiceName)'
+                    resourceGroupName: '$(resourceGroup)'
+                    package: '$(Pipeline.Workspace)/$(artifactName)/*.zip'
